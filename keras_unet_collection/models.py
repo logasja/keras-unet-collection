@@ -1,4 +1,3 @@
-
 from __future__ import absolute_import
 
 from keras_unet_collection._model_unet_2d import unet_2d
