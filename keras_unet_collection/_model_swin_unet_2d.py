@@ -125,7 +125,7 @@ def swin_unet_2d_base(
 
     """
     # Compute number be patches to be embeded
-    input_size = input_tensor.shape.as_list()[1:]
+    input_size = ops.shape(input_tensor)[1:]
     num_patch_x = input_size[0] // patch_size[0]
     num_patch_y = input_size[1] // patch_size[1]
 
@@ -215,7 +215,7 @@ def swin_unet_2d_base(
         num_patch_y = num_patch_y * 2
 
         # Concatenation and linear projection
-        X = concatenate([X, X_decode[i]], axis=-1, name="{}_concat_{}".format(name, i))
+        X = layers.concatenate([X, X_decode[i]], axis=-1, name="{}_concat_{}".format(name, i))
         X = layers.Dense(
             embed_dim, use_bias=False, name="{}_concat_linear_proj_{}".format(name, i)
         )(X)

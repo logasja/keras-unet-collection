@@ -39,13 +39,7 @@ class patch_extract(layers.Layer):
     def call(self, images):
         batch_size = ops.shape(images)[0]
 
-        patches = extract_patches(
-            images=images,
-            sizes=(1, self.patch_size_x, self.patch_size_y, 1),
-            strides=(1, self.patch_size_x, self.patch_size_y, 1),
-            rates=(1, 1, 1, 1),
-            padding="VALID",
-        )
+        patches = ops.image.extract_patches(images=images, size=(self.patch_size_x, self.patch_size_y), dilation_rate=1, padding="valid")
         # patches.shape = (num_sample, patch_num, patch_num, patch_size*channel)
 
         patch_dim = patches.shape[-1]
@@ -99,7 +93,7 @@ class patch_embedding(layers.Layer):
         self.num_patch = num_patch
         self.embed_dim = embed_dim
         self.proj = layers.Dense(embed_dim)
-        self.pos_embed = Embedding(input_dim=num_patch, output_dim=embed_dim)
+        self.pos_embed = layers.Embedding(input_dim=num_patch, output_dim=embed_dim)
 
     def get_config(self):
         config = super().get_config().copy()
@@ -116,7 +110,7 @@ class patch_embedding(layers.Layer):
         return cls(**config)
 
     def call(self, patch):
-        pos = ops.range(start=0, limit=self.num_patch, delta=1)
+        pos = ops.arange(start=0, stop=self.num_patch, step=1)
         embed = self.proj(patch) + self.pos_embed(pos)
         return embed
 
@@ -165,7 +159,7 @@ class patch_merging(layers.Layer):
 
     def call(self, x):
         H, W = self.num_patch
-        B, L, C = x.get_shape().as_list()
+        B, L, C = ops.sahpe(x)
 
         assert L == H * W, "input feature has wrong size"
         assert (
@@ -173,7 +167,7 @@ class patch_merging(layers.Layer):
         ), "{}-by-{} patches received, they are not even.".format(H, W)
 
         # Convert the patch sequence to aligned patches
-        x = ops.reshape(x, shape=(-1, H, W, C))
+        x = ops.reshape(x, newshape=(-1, H, W, C))
 
         # Downsample
         x0 = x[:, 0::2, 0::2, :]  # B H/2 W/2 C
@@ -183,7 +177,7 @@ class patch_merging(layers.Layer):
         x = ops.concat((x0, x1, x2, x3), axis=-1)
 
         # Convert to the patch squence
-        x = ops.reshape(x, shape=(-1, (H // 2) * (W // 2), 4 * C))
+        x = ops.reshape(x, newshape=(-1, (H // 2) * (W // 2), 4 * C))
 
         # Linear transform
         x = self.linear_trans(x)
@@ -259,7 +253,7 @@ class patch_expanding(layers.Layer):
 
     def call(self, x):
         H, W = self.num_patch
-        B, L, C = x.get_shape().as_list()
+        B, L, C = ops.shape(x)
 
         assert L == H * W, "input feature has wrong size"
 
@@ -291,18 +285,18 @@ class patch_expanding(layers.Layer):
 def window_partition(x, window_size):
     # Get the static shape of the input tensor
     # (Sample, Height, Width, Channel)
-    _, H, W, C = x.get_shape().as_list()
+    _, H, W, C = ops.shape(x)
 
     # Subset tensors to patches
     patch_num_H = H // window_size
     patch_num_W = W // window_size
     x = ops.reshape(
-        x, shape=(-1, patch_num_H, window_size, patch_num_W, window_size, C)
+        x, newshape=(-1, patch_num_H, window_size, patch_num_W, window_size, C)
     )
     x = ops.transpose(x, (0, 1, 3, 2, 4, 5))
 
     # Reshape patches to a patch sequence
-    windows = ops.reshape(x, shape=(-1, window_size, window_size, C))
+    windows = ops.reshape(x, newshape=(-1, window_size, window_size, C))
 
     return windows
 
@@ -312,12 +306,12 @@ def window_reverse(windows, window_size, H, W, C):
     patch_num_H = H // window_size
     patch_num_W = W // window_size
     x = ops.reshape(
-        windows, shape=(-1, patch_num_H, patch_num_W, window_size, window_size, C)
+        windows, newshape=(-1, patch_num_H, patch_num_W, window_size, window_size, C)
     )
     x = ops.transpose(x, perm=(0, 1, 3, 2, 4, 5))
 
     # Merge patches to spatial frames
-    x = ops.reshape(x, shape=(-1, H, W, C))
+    x = ops.reshape(x, newshape=(-1, H, W, C))
 
     return x
 
@@ -495,11 +489,11 @@ class WindowAttention(layers.Layer):
 
     def call(self, x, mask=None):
         # Get input tensor static shape
-        _, N, C = x.get_shape().as_list()
+        _, N, C = ops.shape(x)
         head_dim = C // self.num_heads
 
         x_qkv = self.qkv(x)
-        x_qkv = ops.reshape(x_qkv, shape=(-1, N, 3, self.num_heads, head_dim))
+        x_qkv = ops.reshape(x_qkv, newshape=(-1, N, 3, self.num_heads, head_dim))
         x_qkv = ops.transpose(x_qkv, perm=(2, 0, 3, 1, 4))
         q, k, v = x_qkv[0], x_qkv[1], x_qkv[2]
 
@@ -513,24 +507,24 @@ class WindowAttention(layers.Layer):
         # Shift window
         num_window_elements = self.window_size[0] * self.window_size[1]
         relative_position_index_flat = ops.reshape(
-            self.relative_position_index, shape=(-1,)
+            self.relative_position_index, newshape=(-1,)
         )
         relative_position_bias = ops.take(
             self.relative_position_bias_table, relative_position_index_flat
         )
         relative_position_bias = ops.reshape(
-            relative_position_bias, shape=(num_window_elements, num_window_elements, -1)
+            relative_position_bias, newshape=(num_window_elements, num_window_elements, -1)
         )
         relative_position_bias = ops.transpose(relative_position_bias, perm=(2, 0, 1))
         attn = attn + ops.expand_dims(relative_position_bias, axis=0)
 
         if mask is not None:
-            nW = mask.get_shape()[0]
+            nW = ops.shape(mask)[0]
             mask_float = ops.cast(
                 ops.expand_dims(ops.expand_dims(mask, axis=1), axis=0), "float32"
             )
-            attn = ops.reshape(attn, shape=(-1, nW, self.num_heads, N, N)) + mask_float
-            attn = ops.reshape(attn, shape=(-1, self.num_heads, N, N))
+            attn = ops.reshape(attn, newshape=(-1, nW, self.num_heads, N, N)) + mask_float
+            attn = ops.reshape(attn, newshape=(-1, self.num_heads, N, N))
             attn = activations.softmax(attn, axis=-1)
         else:
             attn = activations.softmax(attn, axis=-1)
@@ -541,7 +535,7 @@ class WindowAttention(layers.Layer):
         # Merge qkv vectors
         x_qkv = attn @ v
         x_qkv = ops.transpose(x_qkv, perm=(0, 2, 1, 3))
-        x_qkv = ops.reshape(x_qkv, shape=(-1, N, C))
+        x_qkv = ops.reshape(x_qkv, newshape=(-1, N, C))
 
         # Linear projection
         x_qkv = self.proj(x_qkv)
@@ -674,7 +668,7 @@ class SwinTransformerBlock(layers.Layer):
             # mask array to windows
             mask_windows = window_partition(mask_array, self.window_size)
             mask_windows = ops.reshape(
-                mask_windows, shape=[-1, self.window_size * self.window_size]
+                mask_windows, newshape=[-1, self.window_size * self.window_size]
             )
             attn_mask = ops.expand_dims(mask_windows, axis=1) - ops.expand_dims(
                 mask_windows, axis=2
@@ -693,7 +687,7 @@ class SwinTransformerBlock(layers.Layer):
 
     def call(self, x):
         H, W = self.num_patch
-        B, L, C = x.get_shape().as_list()
+        B, L, C = ops.shape(x)
 
         # Checking num_path and tensor sizes
         assert L == H * W, "Number of patches before and after Swin-MSA are mismatched."
@@ -705,7 +699,7 @@ class SwinTransformerBlock(layers.Layer):
         x = self.norm1(x)
 
         # Convert to aligned patches
-        x = ops.reshape(x, shape=(-1, H, W, C))
+        x = ops.reshape(x, newshape=(-1, H, W, C))
 
         # Cyclic shift
         if self.shift_size > 0:
@@ -718,7 +712,7 @@ class SwinTransformerBlock(layers.Layer):
         # Window partition
         x_windows = window_partition(shifted_x, self.window_size)
         x_windows = ops.reshape(
-            x_windows, shape=(-1, self.window_size * self.window_size, C)
+            x_windows, newshape=(-1, self.window_size * self.window_size, C)
         )
 
         # Window-based multi-headed self-attention
@@ -726,7 +720,7 @@ class SwinTransformerBlock(layers.Layer):
 
         # Merge windows
         attn_windows = ops.reshape(
-            attn_windows, shape=(-1, self.window_size, self.window_size, C)
+            attn_windows, newshape=(-1, self.window_size, self.window_size, C)
         )
         shifted_x = window_reverse(attn_windows, self.window_size, H, W, C)
 
@@ -739,7 +733,7 @@ class SwinTransformerBlock(layers.Layer):
             x = shifted_x
 
         # Convert back to the patch sequence
-        x = ops.reshape(x, shape=(-1, H * W, C))
+        x = ops.reshape(x, newshape=(-1, H * W, C))
 
         # Drop-path
         ## if drop_path_prob = 0, it will not drop

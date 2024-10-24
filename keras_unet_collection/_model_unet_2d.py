@@ -213,8 +213,6 @@ def unet_2d_base(
     
     """
 
-    activation_func = eval(activation)
-
     X_skip = []
     depth_ = len(filter_num)
 
@@ -419,7 +417,6 @@ def unet_2d(
         model: a keras model.
     
     """
-    activation_func = eval(activation)
 
     if backbone is not None:
         bach_norm_checker(backbone, batch_norm)

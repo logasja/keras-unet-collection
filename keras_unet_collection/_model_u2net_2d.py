@@ -424,7 +424,7 @@ def u2net_2d_base(
             name="{}_decode_4f_{}".format(name, i),
         )
 
-        X = concatenate(
+        X = layers.concatenate(
             [X, X_skip[tensor_count]], axis=-1, name="{}_concat_4f_{}".format(name, i)
         )
 
@@ -451,7 +451,7 @@ def u2net_2d_base(
             name="{}_decode_{}".format(name, i),
         )
 
-        X = concatenate(
+        X = layers.concatenate(
             [X, X_skip[tensor_count]], axis=-1, name="{}_concat_{}".format(name, i)
         )
 
@@ -670,15 +670,7 @@ def u2net_2d(
         )
 
         if output_activation:
-            if output_activation == "Sigmoid":
-                X = layers.Activation(
-                    "sigmoid", name="{}_output_sup{}_activation".format(name, i)
-                )(X)
-            else:
-                activation_func = eval(output_activation)
-                X = activation_func(name="{}_output_sup{}_activation".format(name, i))(
-                    X
-                )
+            X = layer_activation(output_activation, name="{}_output_sup{}_activation".format(name, i))(X)
 
         OUT_stack.append(X)
 

@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 from keras import Model, applications
 
 from keras_unet_collection.utils import freeze_model
@@ -185,7 +183,7 @@ def backbone_zoo(
         depth = depth_max
     # ----- #
 
-    backbone_func = eval(backbone_name)
+    backbone_func = applications.__dict__[backbone_name]
     backbone_ = backbone_func(
         include_top=False,
         weights=weights,

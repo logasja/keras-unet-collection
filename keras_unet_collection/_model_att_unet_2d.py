@@ -75,7 +75,7 @@ def UNET_att_right(
     )
 
     # Tensor concatenation
-    H = concatenate([X, X_left], axis=-1, name="{}_concat".format(name))
+    H = layers.concatenate([X, X_left], axis=-1, name="{}_concat".format(name))
 
     # stacked linear convolutional layers after concatenation
     H = CONV_stack(
@@ -160,8 +160,6 @@ def att_unet_2d_base(
         X: the output tensor of the base.
     
     """
-    activation_func = eval(activation)
-
     depth_ = len(filter_num)
     X_skip = []
 
@@ -371,9 +369,6 @@ def att_unet_2d(
         model: a keras model 
     
     """
-
-    # one of the ReLU, LeakyReLU, PReLU, ELU
-    activation_func = eval(activation)
 
     if backbone is not None:
         bach_norm_checker(backbone, batch_norm)

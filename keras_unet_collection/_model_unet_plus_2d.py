@@ -81,8 +81,6 @@ def unet_plus_2d_base(
     
     """
 
-    activation_func = eval(activation)
-
     depth_ = len(filter_num)
     # allocate nested lists for collecting output tensors
     X_nest_skip = [[] for _ in range(depth_)]

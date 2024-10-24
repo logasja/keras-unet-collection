@@ -58,7 +58,7 @@ def ResUNET_a_block(
         )
 
     if len(X_res) > 1:
-        return add(X_res)
+        return layers.add(X_res)
 
     else:
         return X_res[0]
@@ -118,7 +118,7 @@ def ResUNET_a_right(
     )
 
     # <--- *stacked convolutional can be applied here
-    X = concatenate(
+    X = layers.concatenate(
         [
             X,
         ]
@@ -197,8 +197,6 @@ def resunet_a_2d_base(
 
     pool_size = 2
 
-    activation_func = eval(activation)
-
     depth_ = len(filter_num)
     X_skip = []
 
@@ -215,7 +213,7 @@ def resunet_a_2d_base(
     X = input_tensor
 
     # input mapping with 1-by-1 conv
-    X = Conv2D(
+    X = layers.Conv2D(
         filter_num[0],
         1,
         1,
@@ -224,7 +222,7 @@ def resunet_a_2d_base(
         use_bias=True,
         name="{}_input_mapping".format(name),
     )(X)
-    X = activation_func(name="{}_input_activation".format(name))(X)
+    X = layer_activation(activation, name="{}_input_activation".format(name))(X)
     X_skip.append(X)
     # ----- #
 
@@ -288,7 +286,7 @@ def resunet_a_2d_base(
             name="{}_up{}".format(name, i),
         )
 
-    X = concatenate([X_skip[-1], X], name="{}_concat_out".format(name))
+    X = layers.concatenate([X_skip[-1], X], name="{}_concat_out".format(name))
 
     X = ASPP_conv(
         X,
@@ -362,7 +360,6 @@ def resunet_a_2d(
     
     """
 
-    activation_func = eval(activation)
     depth_ = len(filter_num)
 
     X_skip = []

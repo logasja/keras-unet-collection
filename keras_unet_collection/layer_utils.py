@@ -1,8 +1,23 @@
 from __future__ import absolute_import
 
 from keras_unet_collection.activations import GELU, Snake
-from keras import ops, layers, activations
+from keras import ops, layers, activations, KerasTensor
+from typing import Callable
 
+def layer_activation(activation: str | Callable, name: str):
+    try:
+        # activation
+        return layers.Activation(
+            activation.lower(), name=name
+        )
+    except ValueError:
+        if activation.lower() == "prelu":
+            return layers.PReLU(name=name)
+        elif activation.lower() == "leakyrelu":
+            return layers.LeakyReLU(name=name)
+        else:
+            activation_func = eval(activation)
+            return activation_func(name=name)
 
 def decode_layer(
     X,
@@ -83,8 +98,7 @@ def decode_layer(
 
         # activation
         if activation is not None:
-            activation_func = eval(activation)
-            X = activation_func(name="{}_activation".format(name))(X)
+            X = layer_activation(activation, name="{}_activation".format(name))(X)
 
     return X
 
@@ -167,8 +181,7 @@ def encode_layer(
 
         # activation
         if activation is not None:
-            activation_func = eval(activation)
-            X = activation_func(name="{}_activation".format(name))(X)
+            X = layer_activation(activation, name="{}_activation".format(name))(X)
 
     return X
 
@@ -197,9 +210,6 @@ def attention_gate(X, g, channel, activation="ReLU", attention="add", name="att"
         X_att: output tensor.
 
     """
-    activation_func = eval(activation)
-    attention_func = eval(attention)
-
     # mapping the input tensor to the intermediate channel
     theta_att = layers.Conv2D(
         channel, 1, use_bias=True, name="{}_theta_x".format(name)
@@ -209,17 +219,20 @@ def attention_gate(X, g, channel, activation="ReLU", attention="add", name="att"
     phi_g = layers.Conv2D(channel, 1, use_bias=True, name="{}_phi_g".format(name))(g)
 
     # ----- attention learning ----- #
-    query = attention_func([theta_att, phi_g], name="{}_add".format(name))
+    if attention == "add":
+        query = layers.Add(name="{}_add".format(name))([theta_att, phi_g])
+    else:
+        query = layers.Multiply(name="{}_add".format(name))(([theta_att, phi_g]))
 
     # nonlinear activation
-    f = activation_func(name="{}_activation".format(name))(query)
+    f = layer_activation(activation, name="{}_activation".format(name))(query)
 
     # linear transformation
     psi_f = layers.Conv2D(1, 1, use_bias=True, name="{}_psi_f".format(name))(f)
     # ------------------------------ #
 
     # sigmoid activation as attention coefficients
-    coef_att = layers.Activation("sigmoid", name="{}_sigmoid".format(name))(psi_f)
+    coef_att = layer_activation("sigmoid", name="{}_sigmoid".format(name))(psi_f)
 
     # multiplicative attention masking
     X_att = layers.multiply([X, coef_att], name="{}_masking".format(name))
@@ -280,15 +293,7 @@ def CONV_stack(
         if batch_norm:
             X = layers.BatchNormalization(axis=3, name="{}_{}_bn".format(name, i))(X)
 
-        try:
-            # activation
-            X = layers.Activation(
-                activation.lower(), name="{}_{}_activation".format(name, i)
-            )(X)
-        except ValueError:
-            print(activation)
-            activation_func = eval(activation)
-            X = activation_func(name="{}_{}_activation".format(name, i))(X)
+        X = layer_activation(activation, name="{}_{}_activation".format(name, i))(X)
 
     return X
 
@@ -330,12 +335,7 @@ def Res_CONV_stack(
 
     X = layers.add([X_skip, X], name="{}_add".format(name))
 
-    try:
-        # activation
-        X = layers.Activation(activation.lower(), name="{}_activation".format(name))(X)
-    except ValueError:
-        activation_func = eval(activation)
-        X = activation_func(name="{}_activation".format(name))(X)
+    X = layer_activation(activation, name="{}_activation".format(name))(X)
     return X
 
 
@@ -370,8 +370,6 @@ def Sep_CONV_stack(
         X: output tensor.
 
     """
-
-    activation_func = eval(activation)
     bias_flag = not batch_norm
 
     for i in range(stack_num):
@@ -386,7 +384,7 @@ def Sep_CONV_stack(
         if batch_norm:
             X = layers.BatchNormalization(name="{}_{}_depthwise_BN".format(name, i))(X)
 
-        X = activation_func(name="{}_{}_depthwise_activation".format(name, i))(X)
+        X = layer_activation(activation, name="{}_{}_depthwise_activation".format(name, i))(X)
 
         X = layers.Conv2D(
             channel,
@@ -399,14 +397,10 @@ def Sep_CONV_stack(
         if batch_norm:
             X = layers.BatchNormalization(name="{}_{}_pointwise_BN".format(name, i))(X)
 
-        try:
-            # activation
-            X = layers.Activation(
-                activation.lower(), name="{}_{}_activation".format(name, i)
-            )(X)
-        except ValueError:
-            activation_func = eval(activation)
-            X = activation_func(name="{}_{}_activation".format(name, i))(X)
+        # activation
+        X = layer_activation(
+                activation, name="{}_{}_activation".format(name, i)
+        )(X)
 
     return X
 
@@ -442,7 +436,7 @@ def ASPP_conv(X, channel, activation="ReLU", batch_norm=True, name="aspp"):
     shape_before = ops.shape(X)
     b4 = layers.GlobalAveragePooling2D(name="{}_avepool_b4".format(name))(X)
 
-    b4 = ops.expand_dims(ops.expand_dims(b4, 1), 1, name="{}_expdim_b4".format(name))
+    b4 = ops.expand_dims(ops.expand_dims(b4, 1), 1)
 
     b4 = layers.Conv2D(
         channel, 1, padding="same", use_bias=bias_flag, name="{}_conv_b4".format(name)
@@ -451,22 +445,13 @@ def ASPP_conv(X, channel, activation="ReLU", batch_norm=True, name="aspp"):
     if batch_norm:
         b4 = layers.BatchNormalization(name="{}_conv_b4_BN".format(name))(b4)
 
-    try:
-        # activation
-        b4 = layers.Activation(
-            activation.lower(), name="{}_conv_b4_activation".format(name)
-        )(b4)
-    except ValueError:
-        activation_func = eval(activation)
-        b4 = activation_func(name="{}_conv_b4_activation".format(name))(b4)
+    # activation
+    b4 = layer_activation(
+        activation, name="{}_conv_b4_activation".format(name)
+    )(b4)
 
     # <----- tensorflow v1 resize.
-    b4 = layers.Lambda(
-        lambda X: ops.image.resize(
-            X, shape_before[1:3], method="bilinear", align_corners=True
-        ),
-        name="{}_resize_b4".format(name),
-    )(b4)
+    b4 = layers.Resizing(shape_before[1], shape_before[2], interpolation="bilinear", name="{}_resize_b4".format(name))(b4)
 
     b0 = layers.Conv2D(
         channel,
@@ -479,14 +464,10 @@ def ASPP_conv(X, channel, activation="ReLU", batch_norm=True, name="aspp"):
     if batch_norm:
         b0 = layers.BatchNormalization(name="{}_conv_b0_BN".format(name))(b0)
 
-    try:
-        b0 = layers.Activation(
-            activation.lower(), name="{}_conv_b0_activation".format(name)
-        )(b0)
-    except ValueError:
-        activation_func = eval(activation)
-        b0 = activation_func(name="{}_conv_b0_activation".format(name))(b0)
-
+    b0 = layer_activation(
+        activation, name="{}_conv_b0_activation".format(name)
+    )(b0)
+    
     # dilation rates are fixed to `[6, 9, 12]`.
     b_r6 = Sep_CONV_stack(
         X,
@@ -549,12 +530,8 @@ def CONV_output(X, n_labels, kernel_size=1, activation="Softmax", name="conv_out
     )
 
     if activation:
-        try:
-            X = layers.Activation(
-                activation.lower(), name="{}_activation".format(name)
-            )(X)
-        except ValueError:
-            activation_func = eval(activation)
-            X = activation_func(name="{}_activation".format(name))(X)
+        X = layer_activation(
+            activation, name="{}_activation".format(name)
+        )(X)
 
     return X

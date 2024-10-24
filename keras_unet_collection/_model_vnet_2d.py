@@ -116,7 +116,7 @@ def vnet_right(
 
     X_skip = X
 
-    X = concatenate(
+    X = layers.concatenate(
         [
             X,
         ]

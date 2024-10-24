@@ -32,11 +32,10 @@ def ViT_MLP(X, filter_num, activation="GELU", name="MLP"):
         V: output tensor.
 
     """
-    activation_func = eval(activation)
 
     for i, f in enumerate(filter_num):
         X = layers.Dense(f, name="{}_dense_{}".format(name, i))(X)
-        X = activation_func(name="{}_activation_{}".format(name, i))(X)
+        X = layer_activation(activation, name="{}_activation_{}".format(name, i))(X)
 
     return X
 
@@ -76,14 +75,14 @@ def ViT_block(V, num_heads, key_dim, filter_num_MLP, activation="GELU", name="Vi
         num_heads=num_heads, key_dim=key_dim, name="{}_atten".format(name)
     )(V_atten, V_atten)
     # Skip connection
-    V_add = add([V_atten, V], name="{}_skip_1".format(name))  # <--- skip
+    V_add = layers.add([V_atten, V], name="{}_skip_1".format(name))  # <--- skip
 
     # MLP
     V_MLP = V_add  # <--- skip
     V_MLP = layers.LayerNormalization(name="{}_layer_norm_2".format(name))(V_MLP)
     V_MLP = ViT_MLP(V_MLP, filter_num_MLP, activation, name="{}_mlp".format(name))
     # Skip connection
-    V_out = add([V_MLP, V_add], name="{}_skip_2".format(name))  # <--- skip
+    V_out = layers.add([V_MLP, V_add], name="{}_skip_2".format(name))  # <--- skip
 
     return V_out
 
@@ -159,8 +158,6 @@ def transunet_2d_base(
         X: output tensor.
     
     """
-    activation_func = eval(activation)
-
     X_skip = []
     depth_ = len(filter_num)
 
@@ -440,8 +437,6 @@ def transunet_2d(
         model: a keras model.
     
     """
-
-    activation_func = eval(activation)
 
     IN = Input(input_size)
 

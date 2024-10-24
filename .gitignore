@@ -138,3 +138,6 @@ dmypy.json
 .pyre/
 
 *.zip
+examples/train2017
+examples/val2017
+examples/stuffthingsmaps_trainval2017

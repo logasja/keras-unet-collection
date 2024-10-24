@@ -38,27 +38,25 @@ def RR_CONV(
 
     """
 
-    activation_func = eval(activation)
-
-    layer_skip = Conv2D(channel, 1, name="{}_conv".format(name))(X)
+    layer_skip = layers.Conv2D(channel, 1, name="{}_conv".format(name))(X)
     layer_main = layer_skip
 
     for i in range(stack_num):
-        layer_res = Conv2D(
+        layer_res = layers.Conv2D(
             channel, kernel_size, padding="same", name="{}_conv{}".format(name, i)
         )(layer_main)
 
         if batch_norm:
-            layer_res = BatchNormalization(name="{}_bn{}".format(name, i))(layer_res)
+            layer_res = layers.BatchNormalization(name="{}_bn{}".format(name, i))(layer_res)
 
-        layer_res = activation_func(name="{}_activation{}".format(name, i))(layer_res)
+        layer_res = layer_activation(activation, name="{}_activation{}".format(name, i))(layer_res)
 
         for j in range(recur_num):
-            layer_add = add(
+            layer_add = layers.add(
                 [layer_res, layer_main], name="{}_add{}_{}".format(name, i, j)
             )
 
-            layer_res = Conv2D(
+            layer_res = layers.Conv2D(
                 channel,
                 kernel_size,
                 padding="same",
@@ -66,17 +64,17 @@ def RR_CONV(
             )(layer_add)
 
             if batch_norm:
-                layer_res = BatchNormalization(name="{}_bn{}_{}".format(name, i, j))(
+                layer_res = layers.BatchNormalization(name="{}_bn{}_{}".format(name, i, j))(
                     layer_res
                 )
 
-            layer_res = activation_func(name="{}_activation{}_{}".format(name, i, j))(
+            layer_res = layer_activation(activation, name="{}_activation{}_{}".format(name, i, j))(
                 layer_res
             )
 
         layer_main = layer_res
 
-    out_layer = add([layer_main, layer_skip], name="{}_add{}".format(name, i))
+    out_layer = layers.add([layer_main, layer_skip], name="{}_add{}".format(name, i))
 
     return out_layer
 
@@ -209,7 +207,7 @@ def UNET_RR_right(
     )
 
     # Tensor concatenation
-    H = concatenate(
+    H = layers.concatenate(
         [
             X,
         ]
@@ -278,8 +276,6 @@ def r2_unet_2d_base(
         X: output tensor.
     
     """
-
-    activation_func = eval(activation)
 
     X = input_tensor
     X_skip = []
@@ -384,8 +380,6 @@ def r2_unet_2d(
         model: a keras model.
     
     """
-
-    activation_func = eval(activation)
 
     IN = Input(input_size, name="{}_input".format(name))
 

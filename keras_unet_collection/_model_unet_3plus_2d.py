@@ -250,7 +250,7 @@ def unet_3plus_2d_base(
         # layer fusion at the end of each level
         # stacked conv layers after concat. BatchNormalization is fixed to True
 
-        X = concatenate(X_fscale, axis=-1, name="{}_concat_{}".format(name, i))
+        X = layers.concatenate(X_fscale, axis=-1, name="{}_concat_{}".format(name, i))
         X = CONV_stack(
             X,
             filter_num_aggregate,
@@ -446,7 +446,7 @@ def unet_3plus_2d(
         for i in range(1, L_out):
             pool_size = 2 ** (i)
 
-            X = Conv2D(
+            X = layers.Conv2D(
                 n_labels,
                 3,
                 padding="same",
@@ -465,16 +465,7 @@ def unet_3plus_2d(
 
             if output_activation:
                 print("\t{}_output_sup{}_activation".format(name, i - 1))
-
-                if output_activation == "Sigmoid":
-                    X = Activation(
-                        "sigmoid", name="{}_output_sup{}_activation".format(name, i - 1)
-                    )(X)
-                else:
-                    activation_func = eval(output_activation)
-                    X = activation_func(
-                        name="{}_output_sup{}_activation".format(name, i - 1)
-                    )(X)
+                X = layer_activation(output_activation, name="{}_output_sup{}_activation".format(name, i - 1))(X)
             else:
                 if unpool is False:
                     print("\t{}_output_sup{}_trans_conv".format(name, i - 1))
